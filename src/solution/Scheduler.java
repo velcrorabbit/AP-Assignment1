@@ -57,7 +57,7 @@ public class Scheduler implements IScheduler {
 					for (int i = 0; i <= schedule.getAircraftFor(flight).getCabinCrewRequired(); i++) {
 						CabinCrew current = (CabinCrew) getCabinCrewForFlight(currentRoute);
 						schedule.allocateCabinCrewTo((CabinCrew)current, flight);
-						//current.setHomeBase(currentRoute.getArrivalAirportCode());
+						current.setHomeBase(currentRoute.getArrivalAirportCode());
 					}
 	
 					schedule.completeAllocationFor(flight);
