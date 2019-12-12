@@ -23,12 +23,14 @@ public class Main {
 		routes.reset();
 		
 		aircraft.loadAircraftData(Paths.get("./data/schedule_aircraft.csv"));
-		crew.loadCrewData(Paths.get("./data/schedule_crew.json"));
+		crew.loadCrewData(Paths.get("./data/crew.json"));
 		numbers.loadPassengerNumbersData(Paths.get("./data/schedule_passengers.db"));
 		routes.loadRouteData(Paths.get("./data/schedule_routes.xml"));
 		
 		Scheduler scheduler = new Scheduler();
-		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-27"));
+		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-31"));
 		
+		QualityScoreCalculator calc = new QualityScoreCalculator(aircraft, crew, numbers, scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-31")));
+		System.out.println(calc.calculateQualityScore());	
 	}
 }
