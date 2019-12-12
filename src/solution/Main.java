@@ -13,13 +13,19 @@ public class Main {
 	public static void main(String[] args) throws DataLoadingException {	
 		
 		IAircraftDAO aircraft = new AircraftDAO();
-		aircraft.loadAircraftData(Paths.get("./data/mini_aircraft.csv"));
 		ICrewDAO crew = new CrewDAO();
-		crew.loadCrewData(Paths.get("./data/mini_crew.json"));
 		IPassengerNumbersDAO numbers = new PassengerNumbersDAO();
-		numbers.loadPassengerNumbersData(Paths.get("./data/mini_passengers.db"));
 		IRouteDAO routes = new RouteDAO();
-		routes.loadRouteData(Paths.get("./data/mini_routes.xml"));
+					
+		aircraft.reset();
+		crew.reset();
+		numbers.reset();
+		routes.reset();
+		
+		aircraft.loadAircraftData(Paths.get("./data/schedule_aircraft.csv"));
+		crew.loadCrewData(Paths.get("./data/schedule_crew.json"));
+		numbers.loadPassengerNumbersData(Paths.get("./data/schedule_passengers.db"));
+		routes.loadRouteData(Paths.get("./data/schedule_routes.xml"));
 		
 		Scheduler scheduler = new Scheduler();
 		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-27"));

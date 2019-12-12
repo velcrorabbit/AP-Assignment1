@@ -9,14 +9,14 @@ import baseclasses.Pilot.Rank;
 
 public class Scheduler implements IScheduler {
 	
-	List<CabinCrew> cabinCrew;
-	List<Pilot> pilots;
-	List<Aircraft> aircraft;
-	List<Route> routes;
-	PassengerNumbersDAO passengers;
-	LocalDate startDate;
-	LocalDate endDate;
-	Schedule schedule;
+	private List<CabinCrew> cabinCrew;
+	private List<Pilot> pilots;
+	private List<Aircraft> planes;
+	//private List<Route> routes;
+	private PassengerNumbersDAO passengers;
+	private LocalDate startDate;
+	//private LocalDate endDate;
+	private Schedule schedule;
 	
 	@Override
 	public Schedule generateSchedule(IAircraftDAO aircraft, ICrewDAO crew, IRouteDAO route, IPassengerNumbersDAO passengers,
@@ -24,69 +24,91 @@ public class Scheduler implements IScheduler {
 		
 		this.cabinCrew = crew.getAllCabinCrew();
 		this.pilots = crew.getAllPilots();
-		this.aircraft = aircraft.getAllAircraft();
+		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
 		this.startDate = startDate;
-		this.endDate = endDate;
-		this.routes = route.getAllRoutes();
-		
+		//this.endDate = endDate;
+		//this.routes = route.getAllRoutes();
+
 		schedule = new Schedule(route, startDate, endDate);
-		
+
 		Vector<FlightInfo> vector = new Vector<>();
 		for (FlightInfo flight : schedule.getRemainingAllocations()) {
 			vector.add(flight);
 		}
-
-		for (FlightInfo flight : vector) {
+		
+		for (FlightInfo flight: vector) {
+			
 			Route currentRoute = flight.getFlight();
 			
+			//System.out.println(currentRoute.getFlightNumber());
+
 			try {
-				while (!this.aircraft.isEmpty()){
-					Aircraft currentPlane = getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute);
-					schedule.allocateAircraftTo(currentPlane, flight);
-					currentPlane.setStartingPosition(currentRoute.getArrivalAirportCode());
-					
-					Pilot currentPilot = (Pilot) getCaptainForFlight(currentRoute);
-					schedule.allocateCaptainTo(currentPilot, flight);
-					currentPilot.setHomeBase(currentRoute.getArrivalAirportCode());
-					
-					Pilot currentFirstOfficer = (Pilot)getFirstOfficerForFlight(currentRoute);
-					schedule.allocateFirstOfficerTo(currentFirstOfficer, flight);
-					currentFirstOfficer.setHomeBase(currentRoute.getArrivalAirportCode());
-					
-					for (int i = 0; i <= schedule.getAircraftFor(flight).getCabinCrewRequired(); i++) {
-						CabinCrew current = (CabinCrew) getCabinCrewForFlight(currentRoute);
-						schedule.allocateCabinCrewTo((CabinCrew)current, flight);
-						current.setHomeBase(currentRoute.getArrivalAirportCode());
-					}
-	
-					schedule.completeAllocationFor(flight);
-					
+				try{
+					getAPlane(flight, currentRoute);
+					getACaptain(flight);
+					getAFirstOfficer(flight);
+					getCabinCrew(flight);
+				} catch (DoubleBookedException e) {
+					e.printStackTrace();
 				}
 
-			} catch ( DoubleBookedException | InvalidAllocationException | NullPointerException e) {
-				// TODO Auto-generated catch block
+				
+				schedule.completeAllocationFor(flight);
+				//System.out.println(schedule.isCompleted());
+			} catch (InvalidAllocationException e) {
+				
+				System.out.println(schedule.getAircraftFor(flight).getModel());
+				System.out.println(schedule.getCabinCrewOf(flight).toString());
+				System.out.println(schedule.getCaptainOf(flight).getForename());
+				System.out.println(schedule.getFirstOfficerOf(flight).getForename());
+				
 				e.printStackTrace();
 			}
+
 		}
+		
+		System.out.println("Done");
+
 		return schedule;
 	}
 	
-	private List<Aircraft> getPossiblePlanesForFlight(Route currentRoute) {
+	public void getAPlane(FlightInfo flight, Route currentRoute) throws DoubleBookedException  {	
+		Aircraft bestPlane = getPossiblePlanesForFlight(flight, currentRoute).get(0);
+		
+		for (Aircraft plane : getPossiblePlanesForFlight(flight, currentRoute)) {
+			if (!schedule.hasConflict(plane, flight) && plane.getSeats() < bestPlane.getSeats()) {
+				bestPlane = plane;
 				
+			}
+		}		
+		schedule.allocateAircraftTo(bestPlane, flight);
+	}
+	
+	private List<Aircraft> getPossiblePlanesForFlight(FlightInfo flight, Route currentRoute) {
+		
 		ArrayList<Aircraft> planesWithSeatsInCorrectLocation = new ArrayList<>();
 		ArrayList<Aircraft> planesWithSeats = new ArrayList<>();
 		ArrayList<Aircraft> planesWithOutSeatsInCorrectLocation = new ArrayList<>();
 		
-		for (Aircraft plane : aircraft) {
+		for (Aircraft plane : planes) {
 			
 			if (plane.getSeats() >= passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), startDate) 
-					&& plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode())) {
+					&& plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode()) 
+					&& !schedule.hasConflict(plane, flight)) {
+				
 				planesWithSeatsInCorrectLocation.add(plane);
-			}else if (plane.getSeats() >= passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), startDate)) {
+				
+			} else if (plane.getSeats() >= passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), startDate) 
+					&& !schedule.hasConflict(plane, flight)) {
+				
 				planesWithSeats.add(plane);
-			} else if (plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode())) {
+				
+			} else if (plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode()) 
+					&& !schedule.hasConflict(plane, flight)) {
+				
 				planesWithOutSeatsInCorrectLocation.add(plane);
+				
 			}
 		
 		}
@@ -98,99 +120,151 @@ public class Scheduler implements IScheduler {
 		} else if (!planesWithSeats.isEmpty()) {
 			return planesWithSeats;
 		} else {
-			return aircraft;
+			return planes;
 		}
 		
-		
-	}
-
-	private Aircraft getPlaneWithMinimumSeats(List<Aircraft> possiblePlanes, Route currentRoute) {
-		
-		Aircraft bestPlane = possiblePlanes.get(0);
-
-		for (Aircraft plane : possiblePlanes) {
-			if (plane.getSeats() < bestPlane.getSeats() && plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode())) {
-				bestPlane = plane;
-			}
-		}
-		return bestPlane;
 	}
 	
-	private Crew getCaptainForFlight(Route currentRoute) { 
-		
-		Crew currentPilot = null;
-		
-		
-		while (currentPilot == null) {
-			for (Pilot pilot : pilots) {
-				if(currentRoute.getDepartureAirportCode().equals(pilot.getHomeBase()) 
-						&& pilot.getRank() == Rank.CAPTAIN 
-						&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-					currentPilot = pilot;
-					break;
-				} else if (pilot.getRank() == Rank.CAPTAIN 
-						&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-					currentPilot = pilot;
-					break;
-				}  else if (currentRoute.getDepartureAirportCode().equals(pilot.getHomeBase()) 
-						&& pilot.getRank() == Rank.FIRST_OFFICER 
-						&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-					currentPilot = pilot;
-					break;
-				} else if (pilot.getRank() == Rank.CAPTAIN) {
-					currentPilot = pilot;
-					break;
-				} else if (pilot.getRank() == Rank.FIRST_OFFICER 
-						&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-					currentPilot = pilot;
-					break;
-				} else if (pilot.getRank() == Rank.FIRST_OFFICER) {
-					currentPilot = pilot;
-					break;
+	public void getACaptain(FlightInfo flight) throws DoubleBookedException {
+		for (Pilot captain : getPossibleCaptainsForFlight(flight)) {
+			if(captain.getRank().equals(Rank.CAPTAIN)) {
+				if(!schedule.hasConflict(captain, flight)) {
+					schedule.allocateCaptainTo(captain, flight);
+					break;		
 				}
+			}
+		}
+	}
+	
+	private List<Pilot> getPossibleCaptainsForFlight(FlightInfo flight) {
+		
+		ArrayList<Pilot> captainsLocationRankQualified = new ArrayList<>();
+		ArrayList<Pilot> captainsRankQualified = new ArrayList<>();
+		ArrayList<Pilot> captainsRank = new ArrayList<>();
+		
+		for (Pilot captain : pilots) {
+			if(flight.getFlight().getDepartureAirportCode().equals(captain.getHomeBase()) 
+					&& captain.getRank() == Rank.CAPTAIN 
+					&& captain.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(captain, flight)) {
+				
+				captainsLocationRankQualified.add(captain);
+				
+			} else if (captain.getRank() == Rank.CAPTAIN 
+					&& captain.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(captain, flight)) {
+				
+				captainsRankQualified.add(captain);
+				
+			} else if (captain.getRank() == Rank.CAPTAIN
+					&& !schedule.hasConflict(captain, flight)) {
+				
+				captainsRank.add(captain);
 				
 			}
 		}
-		return currentPilot;
-	}
-	
-	private Crew getFirstOfficerForFlight(Route currentRoute) {
-		Crew currentFirstOfficer = null;
 		
-		for (Pilot pilot : pilots) {
-			if (currentRoute.getDepartureAirportCode().equals(pilot.getHomeBase()) 
-					&& pilot.getRank() == Rank.FIRST_OFFICER 
-					&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-				currentFirstOfficer = pilot;
-				break;
-			} else if (pilot.getRank() == Rank.FIRST_OFFICER 
-					&& pilot.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-				currentFirstOfficer = pilot;
-				break;
-			} else if (pilot.getRank() == Rank.FIRST_OFFICER) {
-				currentFirstOfficer = pilot;
-				break;
-			}
+		if (!captainsLocationRankQualified.isEmpty()) {
+			return captainsLocationRankQualified;
+		} else if (!captainsRankQualified.isEmpty()) {
+			return captainsRankQualified;
+		} else if (!captainsRank.isEmpty()) {
+			return captainsRank;
+		} else {
+			return pilots;
 		}
-		return currentFirstOfficer;
+
 	}
 
-	private Crew getCabinCrewForFlight(Route currentRoute) {
-		Crew crew = null;
+	public void getAFirstOfficer(FlightInfo flight) throws DoubleBookedException {
+		for (Pilot firstOfficer : getPossibleFirstOfficersForFlight(flight)) {
+			if(firstOfficer.getRank().equals(Rank.FIRST_OFFICER)) {
+				if(!schedule.hasConflict(firstOfficer, flight)) {
+					schedule.allocateFirstOfficerTo(firstOfficer, flight);
+					break;		
+				}
+			}
+		}
+	}
+	
+	private List<Pilot> getPossibleFirstOfficersForFlight(FlightInfo flight) {
 		
-		for (Crew crewMember : cabinCrew) {
-			if(currentRoute.getDepartureAirportCode().equals(crewMember.getHomeBase()) 
-					&& crewMember.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute))) {
-				crew = crewMember;
-				break;
-			} else if (crewMember.isQualifiedFor(getPlaneWithMinimumSeats(getPossiblePlanesForFlight(currentRoute), currentRoute)) 
-					|| currentRoute.getDepartureAirportCode().equals(crewMember.getHomeBase())){
-				crew = crewMember;
-				break;
+		ArrayList<Pilot> firstOfficersLocationRankQualified = new ArrayList<>();
+		ArrayList<Pilot> firstOfficersRankQualified = new ArrayList<>();
+		ArrayList<Pilot> firstOfficerRank = new ArrayList<>();
+		
+		for (Pilot firstOfficer : pilots) {
+			if(flight.getFlight().getDepartureAirportCode().equals(firstOfficer.getHomeBase()) 
+					&& firstOfficer.getRank() == Rank.FIRST_OFFICER 
+					&& firstOfficer.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(firstOfficer, flight)) {
+				
+				firstOfficersLocationRankQualified.add(firstOfficer);
+				
+			} else if (firstOfficer.getRank() == Rank.FIRST_OFFICER  
+					&& firstOfficer.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(firstOfficer, flight)) {
+				
+				firstOfficersRankQualified.add(firstOfficer);
+				
+			} else if (firstOfficer.getRank() == Rank.FIRST_OFFICER 
+					&& !schedule.hasConflict(firstOfficer, flight)) {
+				
+				firstOfficerRank.add(firstOfficer);
+				
 			}
 		}
 		
-		return crew;
+		if (!firstOfficersLocationRankQualified.isEmpty()) {
+			return firstOfficersLocationRankQualified;
+		} else if (!firstOfficersRankQualified.isEmpty()) {
+			return firstOfficersRankQualified;
+		} else if (!firstOfficerRank.isEmpty()) {
+			return firstOfficerRank;
+		} else {
+			return pilots;
+		}
+
+	}
+	
+	public void getCabinCrew(FlightInfo flight) throws DoubleBookedException {
+		for (CabinCrew crewMember : getPossibleCrewForFlight(flight)) {
+			if(!schedule.hasConflict(crewMember, flight) && schedule.getCabinCrewOf(flight).size() <= schedule.getAircraftFor(flight).getCabinCrewRequired()) {
+				schedule.allocateCabinCrewTo(crewMember, flight);
+			}
+			if (schedule.getCabinCrewOf(flight).size() == schedule.getAircraftFor(flight).getCabinCrewRequired()) {
+				break;
+			}
+		}
+	}
+	
+	private List<CabinCrew> getPossibleCrewForFlight(FlightInfo flight){
+		ArrayList<CabinCrew> crewLocationQualified = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualified = new ArrayList<>();
+		
+		for (CabinCrew crew : cabinCrew) {
+			if(flight.getFlight().getDepartureAirportCode().equals(crew.getHomeBase()) 
+					&& crew.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(crew, flight)) {
+				
+				crewLocationQualified.add(crew);
+				
+			} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
+					&& !schedule.hasConflict(crew, flight)) {
+				
+				crewQualified.add(crew);
+				
+			}
+		}
+		
+		if (!crewLocationQualified.isEmpty()) {
+			return crewLocationQualified;
+		} else if (!crewQualified.isEmpty()) {
+			return crewQualified;
+		} else {
+			return cabinCrew;
+		}
+		
 	}
 
 	@Override
