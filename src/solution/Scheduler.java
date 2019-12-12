@@ -77,10 +77,11 @@ public class Scheduler implements IScheduler {
 		Aircraft bestPlane = getPossiblePlanesForFlight(flight, currentRoute).get(0);
 		
 		for (Aircraft plane : getPossiblePlanesForFlight(flight, currentRoute)) {
-			if (!schedule.hasConflict(plane, flight)) {
+			if (!schedule.hasConflict(plane, flight) && plane.getSeats() < bestPlane.getSeats()) {
 				bestPlane = plane;
+				
 			}
-		}
+		}		
 		schedule.allocateAircraftTo(bestPlane, flight);
 	}
 	
@@ -93,12 +94,12 @@ public class Scheduler implements IScheduler {
 		for (Aircraft plane : planes) {
 			
 			if (plane.getSeats() >= passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), startDate)
-					&& isDepartureSameAsPreviousArrival(flight, plane)
+					&& isPlaneInAndOutSamePlace(flight, plane)
 					&& !schedule.hasConflict(plane, flight)) {
 				
 				planesWithSeatsInCorrectLocation.add(plane);
 				
-			} else if (isDepartureSameAsPreviousArrival(flight, plane)
+			} else if (isPlaneInAndOutSamePlace(flight, plane)
 					&& !schedule.hasConflict(plane, flight)) {
 				
 				planesWithOutSeatsInCorrectLocation.add(plane);
@@ -124,16 +125,14 @@ public class Scheduler implements IScheduler {
 		
 	}
 	
-	private boolean isDepartureSameAsPreviousArrival(FlightInfo flight, Aircraft plane) {
+	private boolean isPlaneInAndOutSamePlace(FlightInfo flight, Aircraft plane) {
 		boolean goodLocation = false;
 		
 		List<FlightInfo> planeFlights = schedule.getCompletedAllocationsFor(plane);
 		
-		if (plane.getStartingPosition().equals(flight.getFlight().getDepartureAirportCode())) {
-			goodLocation = true;
-		}
 		if (planeFlights.size() > 1) {
-			if (flight.getFlight().getDepartureAirportCode().equals(planeFlights.get(planeFlights.size()-1).getFlight().getArrivalAirportCode())){
+			if (flight.getFlight().getDepartureAirport().equals(planeFlights.get(planeFlights.size()-2).getFlight().getArrivalAirport())
+					|| plane.getStartingPosition().equals(flight.getFlight().getDepartureAirport())){
 				goodLocation = true;
 			}
 		}
