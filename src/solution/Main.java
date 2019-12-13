@@ -28,7 +28,7 @@ public class Main {
 		routes.loadRouteData(Paths.get("./data/schedule_routes.xml"));
 		
 		Scheduler scheduler = new Scheduler();
-		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-27"));
+		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-31"));
 		
 	}
 }
