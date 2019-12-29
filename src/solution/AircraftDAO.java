@@ -82,7 +82,6 @@ public class AircraftDAO implements IAircraftDAO {
 		for (Aircraft plane : planes) {
 			if (plane.getSeats() >= seats) {
 				aircraft.add(plane);
-				System.out.println(plane.getTailCode()); 
 			}
 		}
 		
@@ -102,7 +101,6 @@ public class AircraftDAO implements IAircraftDAO {
 		for (Aircraft plane : planes) {
 			if (plane.getStartingPosition().equals(startingPosition)) {
 				aircraft.add(plane);
-				System.out.println(plane.getTailCode()); 
 			}
 		}
 		
@@ -122,7 +120,6 @@ public class AircraftDAO implements IAircraftDAO {
 		for (Aircraft plane : planes) {
 			if (plane.getTailCode().equals(tailCode)) {
 				aircraft = plane;
-				System.out.println(plane.getTailCode()); 
 			}
 		}
 		
@@ -142,7 +139,6 @@ public class AircraftDAO implements IAircraftDAO {
 		for (Aircraft plane : planes) {
 			if (plane.getTypeCode().equals(typeCode)) {
 				aircraft.add(plane);
-				System.out.println(plane.getTailCode()); 
 			}
 		}
 		

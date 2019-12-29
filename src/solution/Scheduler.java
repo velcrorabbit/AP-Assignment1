@@ -14,9 +14,11 @@ public class Scheduler implements IScheduler {
 	private List<Aircraft> planes;
 	//private List<Route> routes;
 	private PassengerNumbersDAO passengers;
-	//private LocalDate startDate;
-	//private LocalDate endDate;
+	private LocalDate startDate;
+	private LocalDate endDate;
 	private Schedule schedule;
+	
+	private IAircraftDAO aircraft;
 	
 	@Override
 	public Schedule generateSchedule(IAircraftDAO aircraft, ICrewDAO crew, IRouteDAO route, IPassengerNumbersDAO passengers,
@@ -26,8 +28,10 @@ public class Scheduler implements IScheduler {
 		this.pilots = crew.getAllPilots();
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
-		//this.startDate = startDate;
-		//this.endDate = endDate;
+		this.startDate = startDate;
+		this.endDate = endDate;
+		
+		this.aircraft = aircraft;
 		//this.routes = route.getAllRoutes();
 
 		schedule = new Schedule(route, startDate, endDate);
@@ -91,34 +95,35 @@ public class Scheduler implements IScheduler {
 		ArrayList<Aircraft> planesWithSeats = new ArrayList<>();
 		ArrayList<Aircraft> planesWithOutSeatsInCorrectLocation = new ArrayList<>();
 		
+		List<Aircraft> planesInCorrectLocation = aircraft.findAircraftByStartingPosition(currentRoute.getDepartureAirportCode());
+		
 		for (Aircraft plane : planes) {
 			
-			if (planeHasSeats(plane, currentRoute, flight) 
-					&& plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode()) 
-					&& !schedule.hasConflict(plane, flight)) {
+			boolean hasSeats = planeHasSeats(plane, currentRoute, flight);
+			boolean inCorrectLocation = planesInCorrectLocation.contains(plane);
+			boolean hasNoConflict = !schedule.hasConflict(plane, flight);
+			
+			if (hasSeats && inCorrectLocation && hasNoConflict) {
 				
 				planesWithSeatsInCorrectLocation.add(plane);
 				
-			} else if (planeHasSeats(plane, currentRoute, flight) 
-					&& !schedule.hasConflict(plane, flight)) {
+			} else if (hasSeats && hasNoConflict) {
 				
 				planesWithSeats.add(plane);
 				
-			} else if (plane.getStartingPosition().equals(currentRoute.getDepartureAirportCode()) 
-					&& !schedule.hasConflict(plane, flight)) {
+			} else if (inCorrectLocation && hasNoConflict) {
 				
 				planesWithOutSeatsInCorrectLocation.add(plane);
 				
 			}
-		
 		}
 		
 		if (!planesWithSeatsInCorrectLocation.isEmpty()) {
 			return planesWithSeatsInCorrectLocation;
-		} else if (!planesWithOutSeatsInCorrectLocation.isEmpty()) {
-			return planesWithOutSeatsInCorrectLocation;
 		} else if (!planesWithSeats.isEmpty()) {
 			return planesWithSeats;
+		} else if (!planesWithOutSeatsInCorrectLocation.isEmpty()) {
+			return planesWithOutSeatsInCorrectLocation;
 		} else {
 			return planes;
 		}
@@ -130,7 +135,9 @@ public class Scheduler implements IScheduler {
 		LocalDate departureDate = flight.getDepartureDateTime().toLocalDate();
 		int passengerNumber = passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), departureDate);
 		
-		if (plane.getSeats() >= passengerNumber) {
+		List<Aircraft> planesWithSeats = aircraft.findAircraftBySeats(passengerNumber);
+		
+		if (planesWithSeats.contains(plane)) {
 			return true;
 		} else {
 			return false;
@@ -155,25 +162,31 @@ public class Scheduler implements IScheduler {
 		ArrayList<Pilot> crewLeft = new ArrayList<>();
 		
 		for (Pilot crew : pilots) {
-			if (!schedule.hasConflict(crew, flight) && crew.getRank() == Rank.CAPTAIN) {
-				if(crew.isQualifiedFor(schedule.getAircraftFor(flight))
-					&& crewIsRested(crew, flight)
-					&& crewInCorrectLocation(crew, flight)
-					&& !crewHitMaxHours(crew)) {
+			
+			boolean hasNoConflict = !schedule.hasConflict(crew, flight);
+			boolean isCaptain = crew.getRank() == Rank.CAPTAIN;
+			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
+			boolean rested = crewIsRested(crew, flight);
+			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean underMaxHours = !crewHitMaxHours(crew);
+			
+			if (hasNoConflict && isCaptain) {
+				if(rested && correctLocation && underMaxHours && qualified) {
 					
 					crewQualifiedRestedLocationUnderHours.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)
-						&& crewInCorrectLocation(crew, flight)) {
+					
+				} else if (rested && correctLocation && qualified) {
 						
 					crewQualifiedRestedLocation.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)) {
+					
+				} else if (rested && qualified) {
 						
 					crewQualifiedRested.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))) {
+					
+				} else if (qualified) {
 					
 					crewQualified.add(crew);
+					
 				} else {
 					
 					crewLeft.add(crew);
@@ -212,31 +225,38 @@ public class Scheduler implements IScheduler {
 		ArrayList<Pilot> crewQualified = new ArrayList<>();
 		ArrayList<Pilot> crewLeft = new ArrayList<>();
 
-		
 		for (Pilot crew : pilots) {
-			if (!schedule.hasConflict(crew, flight) && crew.getRank() == Rank.FIRST_OFFICER ) {
-				if(crew.isQualifiedFor(schedule.getAircraftFor(flight))
-					&& crewIsRested(crew, flight)
-					&& crewInCorrectLocation(crew, flight)
-					&& !crewHitMaxHours(crew)) {
+			
+			boolean hasNoConflict = !schedule.hasConflict(crew, flight);
+			boolean isFirstOfficer = crew.getRank() == Rank.FIRST_OFFICER;
+			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
+			boolean rested = crewIsRested(crew, flight);
+			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean underMaxHours = !crewHitMaxHours(crew);
+			
+			if (hasNoConflict && isFirstOfficer) {
+				if(rested && correctLocation && underMaxHours && qualified) {
 					
 					crewQualifiedRestedLocationUnderHours.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)
-						&& crewInCorrectLocation(crew, flight)) {
+					
+				} else if (rested && correctLocation && qualified) {
 						
 					crewQualifiedRestedLocation.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)) {
+					
+				} else if (rested && qualified) {
 						
 					crewQualifiedRested.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))) {
+					
+				} else if (qualified) {
 					
 					crewQualified.add(crew);
+					
 				} else {
+					
 					crewLeft.add(crew);
 				}
 			}
+			
 		}
 		
 		if (!crewQualifiedRestedLocationUnderHours.isEmpty()) {
@@ -282,27 +302,35 @@ public class Scheduler implements IScheduler {
 		ArrayList<CabinCrew> crewLeft = new ArrayList<>();
 		
 		for (CabinCrew crew : cabinCrew) {
-			if (!schedule.hasConflict(crew, flight)) {
-				if(crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)
-						&& crewInCorrectLocation(crew, flight)
-						&& !crewHitMaxHours(crew)) {
+			
+			boolean hasNoConflict = !schedule.hasConflict(crew, flight);
+			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
+			boolean rested = crewIsRested(crew, flight);
+			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean underMaxHours = !crewHitMaxHours(crew);
+			
+			if (hasNoConflict) {
+				
+				if(qualified && rested && correctLocation && underMaxHours) {
 					
 					crewQualifiedRestedLocationUnderHours.add(crew);
-				} else if(crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)
-						&& crewInCorrectLocation(crew, flight)) {
+					
+				} else if(qualified && rested && correctLocation) {
 					
 					crewQualifiedRestedLocation.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))
-						&& crewIsRested(crew, flight)) {
+					
+				} else if (qualified && rested) {
 					
 					crewQualifiedRested.add(crew);
-				} else if (crew.isQualifiedFor(schedule.getAircraftFor(flight))) {
+					
+				} else if (qualified) {
 					
 					crewQualified.add(crew);
+					
 				} else {
+					
 					crewLeft.add(crew);
+					
 				}
 			}
 		}
@@ -320,7 +348,7 @@ public class Scheduler implements IScheduler {
 	}
 	
 	private boolean crewInCorrectLocation(Crew crew, FlightInfo flight) {
-		
+		/*
 		List<FlightInfo> crewFlights = schedule.getCompletedAllocationsFor(crew);
 		
 		boolean isFlightDepartingFromPreviousArrival = false;
@@ -335,7 +363,7 @@ public class Scheduler implements IScheduler {
 
 			isFlightDepartingFromPreviousArrival = crewPreviousArrival.equals(crewCurrentDeparture);
 			
-			if(!isFlightDepartingFromPreviousArrival && !Utilities.airportIsInUK(crewCurrentDeparture)) {
+			if(!isFlightDepartingFromPreviousArrival) {
 				if(crewFlights.get(crewFlights.size()-1).getDepartureDateTime().isAfter(crewFlights.get(crewFlights.size()-2).getLandingDateTime().plusHours(48))){
 					hadTimeToTravel = true;
 				}
@@ -348,39 +376,53 @@ public class Scheduler implements IScheduler {
 			return true;
 		
 		return false;
-		
+		*/
+		return true;
 	}
 	
 	private boolean crewIsRested(Crew crew, FlightInfo flight) {
-		
+/*
 		List<FlightInfo> crewFlights = schedule.getCompletedAllocationsFor(crew);
 
 		if (crewFlights.size() > 1) {
 			
 			LocalTime crewPreviousArrival = crewFlights.get(crewFlights.size()-2).getFlight().getArrivalTime();
 			LocalTime crewCurrentDeparture = crewFlights.get(crewFlights.size()-1).getFlight().getDepartureTime();
-					
-			return crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(12));
-		
-		} else {
-			return true;
+			
+			if(Utilities.airportIsInUK(crewFlights.get(crewFlights.size()-2).getFlight().getArrivalAirportCode()) 
+					|| Utilities.airportIsInUK(crewFlights.get(crewFlights.size()-1).getFlight().getDepartureAirportCode())) {
+				
+				return crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(12));
+			}
+
 		}
+		*/
+		return true;
+
 	}
 	
 	private boolean crewHitMaxHours(Crew crew) {
+		/*
 		List<FlightInfo> crewsFlights = schedule.getCompletedAllocationsFor(crew);
+		
+		LocalDate MonthStart = startDate.plusMonths(1);
 		
 		int hoursWorked = 0;
 		
-		for (FlightInfo flight : crewsFlights) {
-			hoursWorked += flight.getFlight().getDuration().toHours();
-		}
 		
-		if (hoursWorked > 100) {
-			return true;
-		} else {
-			return false;
+		for (FlightInfo flight : crewsFlights) {
+			if(flight.getLandingDateTime().toLocalDate().isBefore(MonthStart)) {
+				hoursWorked += flight.getFlight().getDuration().toHours();
+				if(hoursWorked > 100) {
+					return false;
+				}
+			} else {
+				MonthStart = MonthStart.plusMonths(1);
+				hoursWorked = 0;
+			}
 		}
+		*/
+		return true;
 	}
 
 	@Override
