@@ -14,8 +14,8 @@ public class Scheduler implements IScheduler {
 	private List<Aircraft> planes;
 	//private List<Route> routes;
 	private PassengerNumbersDAO passengers;
-	private LocalDate startDate;
-	private LocalDate endDate;
+	//private LocalDate startDate;
+	//private LocalDate endDate;
 	private Schedule schedule;
 	
 	private IAircraftDAO aircraft;
@@ -28,8 +28,8 @@ public class Scheduler implements IScheduler {
 		this.pilots = crew.getAllPilots();
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
-		this.startDate = startDate;
-		this.endDate = endDate;
+		//this.startDate = startDate;
+		//this.endDate = endDate;
 		
 		this.aircraft = aircraft;
 		//this.routes = route.getAllRoutes();
@@ -46,6 +46,7 @@ public class Scheduler implements IScheduler {
 			Route currentRoute = flight.getFlight();
 
 			try {
+			
 				try{
 					getAPlane(flight, currentRoute);
 					getACaptain(flight);
@@ -54,10 +55,7 @@ public class Scheduler implements IScheduler {
 				} catch (DoubleBookedException e) {
 					e.printStackTrace();
 				}
-
-				
 				schedule.completeAllocationFor(flight);
-				//System.out.println(schedule.isValid(flight));
 			} catch (InvalidAllocationException e) {
 				
 				System.out.println("Crew needed: " + schedule.getAircraftFor(flight).getCabinCrewRequired());
@@ -73,75 +71,101 @@ public class Scheduler implements IScheduler {
 		}
 		
 		System.out.println("Done");
-
+		/*
+		for (FlightInfo completeFlight : schedule.getCompletedAllocations()) {
+			printOutcomes(completeFlight, completeFlight.getFlight());
+		}
+		*/
 		return schedule;
 	}
 	
-	public void getAPlane(FlightInfo flight, Route currentRoute) throws DoubleBookedException  {	
-		Aircraft bestPlane = getPossiblePlanesForFlight(flight, currentRoute).get(0);
+	public void getAPlane(FlightInfo flight, Route currentRoute) throws DoubleBookedException  {
 		
-		for (Aircraft plane : getPossiblePlanesForFlight(flight, currentRoute)) {
-			if (plane.getSeats() < bestPlane.getSeats()) {
+		LocalDate departureDate = flight.getDepartureDateTime().toLocalDate();
+		int passengerNumber = passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), departureDate);
+		
+		List<Aircraft> possiblePlanes = getPossiblePlanesForFlight(flight, currentRoute, passengerNumber);
+		
+		Aircraft bestPlane = possiblePlanes.get(0);
+		
+		for (Aircraft plane : possiblePlanes) {
+			if (plane.getSeats() < bestPlane.getSeats() && plane.getSeats() >= passengerNumber) {
 				bestPlane = plane;
-				
 			}
 		}		
 		schedule.allocateAircraftTo(bestPlane, flight);
 	}
 	
-	private List<Aircraft> getPossiblePlanesForFlight(FlightInfo flight, Route currentRoute) {
+	private List<Aircraft> getPossiblePlanesForFlight(FlightInfo flight, Route currentRoute, int passengers) {
 		
 		ArrayList<Aircraft> planesWithSeatsInCorrectLocation = new ArrayList<>();
-		ArrayList<Aircraft> planesWithSeats = new ArrayList<>();
 		ArrayList<Aircraft> planesWithOutSeatsInCorrectLocation = new ArrayList<>();
-		
-		List<Aircraft> planesInCorrectLocation = aircraft.findAircraftByStartingPosition(currentRoute.getDepartureAirportCode());
+		ArrayList<Aircraft> planesWithSeats = new ArrayList<>();
 		
 		for (Aircraft plane : planes) {
 			
-			boolean hasSeats = planeHasSeats(plane, currentRoute, flight);
-			boolean inCorrectLocation = planesInCorrectLocation.contains(plane);
+			boolean hasSeats = planeHasSeats(plane, passengers);
+			boolean inCorrectLocation = planeInRightLocation(currentRoute, plane);
 			boolean hasNoConflict = !schedule.hasConflict(plane, flight);
 			
 			if (hasSeats && inCorrectLocation && hasNoConflict) {
 				
 				planesWithSeatsInCorrectLocation.add(plane);
 				
-			} else if (hasSeats && hasNoConflict) {
-				
-				planesWithSeats.add(plane);
-				
 			} else if (inCorrectLocation && hasNoConflict) {
 				
 				planesWithOutSeatsInCorrectLocation.add(plane);
+				
+			} else if (hasSeats && hasNoConflict) {
+				
+				planesWithSeats.add(plane);
 				
 			}
 		}
 		
 		if (!planesWithSeatsInCorrectLocation.isEmpty()) {
+			//System.out.println("All conditions");
 			return planesWithSeatsInCorrectLocation;
-		} else if (!planesWithSeats.isEmpty()) {
-			return planesWithSeats;
 		} else if (!planesWithOutSeatsInCorrectLocation.isEmpty()) {
+			//System.out.println("Correct location");
 			return planesWithOutSeatsInCorrectLocation;
+		} else if (!planesWithSeats.isEmpty()) {
+			//System.out.println("Correct Seats");
+			return planesWithSeats;
 		} else {
 			return planes;
 		}
 		
 	}
 	
-	private boolean planeHasSeats(Aircraft plane, Route currentRoute, FlightInfo flight){
-		
-		LocalDate departureDate = flight.getDepartureDateTime().toLocalDate();
-		int passengerNumber = passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), departureDate);
-		
-		List<Aircraft> planesWithSeats = aircraft.findAircraftBySeats(passengerNumber);
+	private boolean planeHasSeats(Aircraft plane, int passsengers){
+
+		List<Aircraft> planesWithSeats = aircraft.findAircraftBySeats(passsengers);
 		
 		if (planesWithSeats.contains(plane)) {
 			return true;
 		} else {
 			return false;
 		}
+	}
+	
+	private boolean planeInRightLocation(Route currentRoute, Aircraft plane) {
+
+		//List<FlightInfo> previousFlights = schedule.getCompletedAllocationsFor(plane);
+		
+		String currentLocation = plane.getStartingPosition();
+		 /*
+		if (previousFlights.size() > 1) {
+			currentLocation = previousFlights.get(previousFlights.size()-1).getFlight().getArrivalAirportCode();
+		}
+		*/
+		
+		if (currentRoute.getDepartureAirportCode().equals(currentLocation)) {
+			return true;
+		} else {
+			return false;
+		}
+		
 	}
 	
 	public void getACaptain(FlightInfo flight) throws DoubleBookedException {
@@ -168,7 +192,7 @@ public class Scheduler implements IScheduler {
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
 			boolean correctLocation = crewInCorrectLocation(crew, flight);
-			boolean underMaxHours = !crewHitMaxHours(crew);
+			boolean underMaxHours = true; //!crewHitMaxHours(crew);
 			
 			if (hasNoConflict && isCaptain) {
 				if(rested && correctLocation && underMaxHours && qualified) {
@@ -232,7 +256,7 @@ public class Scheduler implements IScheduler {
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
 			boolean correctLocation = crewInCorrectLocation(crew, flight);
-			boolean underMaxHours = !crewHitMaxHours(crew);
+			boolean underMaxHours = true; //!crewHitMaxHours(crew);
 			
 			if (hasNoConflict && isFirstOfficer) {
 				if(rested && correctLocation && underMaxHours && qualified) {
@@ -307,7 +331,7 @@ public class Scheduler implements IScheduler {
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
 			boolean correctLocation = crewInCorrectLocation(crew, flight);
-			boolean underMaxHours = !crewHitMaxHours(crew);
+			boolean underMaxHours = true; //!crewHitMaxHours(crew);
 			
 			if (hasNoConflict) {
 				
@@ -435,6 +459,44 @@ public class Scheduler implements IScheduler {
 	public void stop() {
 		// TODO Auto-generated method stub
 
+	}
+	
+	public void printOutcomes (FlightInfo flight, Route currentRoute) {
+		
+		Aircraft plane = schedule.getAircraftFor(flight);
+		int passengerNumbers = this.passengers.getPassengerNumbersFor(currentRoute.getFlightNumber(), flight.getDepartureDateTime().toLocalDate());
+		int seats = plane.getSeats();
+		boolean planeHasSeats = planeHasSeats(plane, passengerNumbers);
+		List<FlightInfo> completedAllocations = schedule.getCompletedAllocationsFor(plane);
+		
+		String currentAirport;
+		
+		
+		if(completedAllocations.size() > 1) {
+			currentAirport = "(Arrival)" + completedAllocations.get(completedAllocations.size()-1).getFlight().getArrivalAirportCode();
+		} else {
+			currentAirport = "(Start)" + plane.getStartingPosition();
+		}
+		
+		String departureAirport = currentRoute.getDepartureAirportCode();
+		
+		boolean planeInRightLocation = planeInRightLocation(currentRoute, schedule.getAircraftFor(flight));
+
+		
+		System.out.println("Plane Has Seats: " 
+				+ planeHasSeats
+				+ "		 | Plane Seats: "
+				+ seats 
+				+ "			 | People : " 
+				+ passengerNumbers);
+	
+		System.out.println("Plane in right location: " 
+				+ planeInRightLocation 
+				+ "	 | Current Location: "
+				+ currentAirport
+				+ "	 | Current Departure: "
+				+ departureAirport);
+		System.out.println("-----------------------");
 	}
 
 }
