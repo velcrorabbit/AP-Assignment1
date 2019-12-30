@@ -178,19 +178,25 @@ public class Scheduler implements IScheduler {
 		}
 	}
 	
-	private List<Pilot> getPossibleCaptainsForFlight(FlightInfo flight) {
+	private List<Pilot> getPossibleCaptainsForFlight(FlightInfo flight) {		
 		
-		
-		
-		ArrayList<Pilot> crewQualifiedRestedLocationUnderHours = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedRestedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedRestedLocation = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedRestedHours = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedRested = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedHours = new ArrayList<>();
+		ArrayList<Pilot> crewRestedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedLocation = new ArrayList<>();
 		ArrayList<Pilot> crewQualified = new ArrayList<>();
-		ArrayList<Pilot> crewLocationRested = new ArrayList<>();
-		ArrayList<Pilot> crewLocation = new ArrayList<>();
+		ArrayList<Pilot> crewLocationHours = new ArrayList<>();
+		ArrayList<Pilot> crewRestedLocation = new ArrayList<>();
+		ArrayList<Pilot> crewRestedHours = new ArrayList<>();
 		ArrayList<Pilot> crewRested = new ArrayList<>();
+		ArrayList<Pilot> crewLocation = new ArrayList<>();
+		ArrayList<Pilot> crewHours = new ArrayList<>();
 		ArrayList<Pilot> crewLeft = new ArrayList<>();
+		
 		
 		for (Pilot crew : pilots) {
 			
@@ -198,70 +204,81 @@ public class Scheduler implements IScheduler {
 			boolean isCaptain = crew.getRank() == Rank.CAPTAIN;
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
-			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean location = crewInCorrectLocation(crew, flight);
 			boolean underMaxHours = !crewHitMaxHours(crew);
 			
 			if (hasNoConflict && isCaptain) {
-				if(rested && correctLocation && underMaxHours && qualified) {
-					
-					crewQualifiedRestedLocationUnderHours.add(crew);
-					
-				} else if (rested && correctLocation && qualified) {
-						
+				
+				if(qualified && rested && location && underMaxHours) {
+					crewQualifiedRestedLocationHours.add(crew);
+				} else if(qualified && rested && location) {
 					crewQualifiedRestedLocation.add(crew);
-					
-				} else if (rested && qualified) {
-					
+				} else if(qualified && rested && underMaxHours) {
+					crewQualifiedRestedHours.add(crew);
+				} else if(qualified && rested && location && underMaxHours) {
+					crewQualifiedLocationHours.add(crew);
+				} else if(qualified && rested) {
 					crewQualifiedRested.add(crew);
-					
-				} else if (qualified && correctLocation) {
-					
+				} else if(qualified && underMaxHours) {
+					crewQualifiedHours.add(crew);
+				} else if(qualified && location) {
 					crewQualifiedLocation.add(crew);
-					
-				} else if (qualified) {
-					
+				} else if(qualified) {
 					crewQualified.add(crew);
-					
-				} else if (correctLocation && rested) {
-					
-					crewLocationRested.add(crew);
-					
-				} else if (correctLocation) {
-					
-					crewLocation.add(crew);
-					
-				} else if (rested) {
-					
+				} else if(rested && location && underMaxHours) {
+					crewRestedLocationHours.add(crew);
+				} else if(location && underMaxHours) {
+					crewLocationHours.add(crew);
+				} else if(rested && location) {
+					crewRestedLocation.add(crew);
+				} else if(rested && underMaxHours) {
+					crewRestedHours.add(crew);
+				} else if(rested) {
 					crewRested.add(crew);
-					
+				} else if(location) {
+					crewLocation.add(crew);
+				} else if(underMaxHours) {
+					crewHours.add(crew);
 				} else {
-					//System.out.println("Is qualified: " +qualified+ " | Is rested: " +rested+ " | Is in location: " +correctLocation);
 					crewLeft.add(crew);
 				}
-				//System.out.println("Is qualified: " +qualified+ " | Is rested: " +rested+ " | Is in location: " +correctLocation);
-				
 			}
 		}
 		
-		if (!crewQualifiedRestedLocationUnderHours.isEmpty()) {
-			return crewQualifiedRestedLocationUnderHours;
-		} else if (!crewQualifiedRestedLocation.isEmpty()) {
+		if(!crewQualifiedRestedLocationHours.isEmpty()) {
+			return crewQualifiedRestedLocationHours;
+		} else if(!crewQualifiedRestedLocation.isEmpty()) {
 			return crewQualifiedRestedLocation;
-		} else if (!crewQualifiedRested.isEmpty()) {
-			return crewQualifiedRested;
-		} else if (!crewQualifiedLocation.isEmpty()) {
+		} else if(!crewQualifiedLocationHours.isEmpty()) {
+			return crewQualifiedLocationHours;
+		} else if(!crewQualifiedRestedHours.isEmpty()) {
+			return crewQualifiedRestedHours;
+		} else if(!crewQualifiedLocation.isEmpty()) {
 			return crewQualifiedLocation;
-		} else if (!crewQualified.isEmpty()) {
+		} else if(!crewQualifiedRested.isEmpty()) {
+			return crewQualifiedRested;
+		} else if(!crewQualifiedHours.isEmpty()) {
+			return crewQualifiedHours;
+		} else if(!crewQualified.isEmpty()) {
 			return crewQualified;
-		} else if (!crewLocationRested.isEmpty()) {
-			return crewLocationRested;
-		} else if (!crewLocation.isEmpty()) {
+		} else if(!crewRestedLocationHours.isEmpty()) {
+			return crewRestedLocationHours;
+		} else if(!crewLocationHours.isEmpty()) {
+			return crewLocationHours;
+		} else if(!crewRestedLocation.isEmpty()) {
+			return crewRestedLocation;
+		} else if(!crewLocation.isEmpty()) {
 			return crewLocation;
-		} else if (!crewRested.isEmpty()) {
+		} else if(!crewRestedHours.isEmpty()) {
+			return crewRestedHours;
+		} else if(!crewRested.isEmpty()) {
 			return crewRested;
+		} else if(!crewHours.isEmpty()) {
+			return crewHours;
 		} else {
 			return crewLeft;
 		}
+		
 	}
 
 	public void getAFirstOfficer(FlightInfo flight) throws DoubleBookedException {
@@ -275,16 +292,23 @@ public class Scheduler implements IScheduler {
 	
 	private List<Pilot> getPossibleFirstOfficersForFlight(FlightInfo flight) {
 		
-		
-		ArrayList<Pilot> crewQualifiedRestedLocationUnderHours = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedRestedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedRestedLocation = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedRestedHours = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedRested = new ArrayList<>();
+		ArrayList<Pilot> crewQualifiedHours = new ArrayList<>();
+		ArrayList<Pilot> crewRestedLocationHours = new ArrayList<>();
 		ArrayList<Pilot> crewQualifiedLocation = new ArrayList<>();
 		ArrayList<Pilot> crewQualified = new ArrayList<>();
-		ArrayList<Pilot> crewLocationRested = new ArrayList<>();
-		ArrayList<Pilot> crewLocation = new ArrayList<>();
+		ArrayList<Pilot> crewLocationHours = new ArrayList<>();
+		ArrayList<Pilot> crewRestedLocation = new ArrayList<>();
+		ArrayList<Pilot> crewRestedHours = new ArrayList<>();
 		ArrayList<Pilot> crewRested = new ArrayList<>();
+		ArrayList<Pilot> crewLocation = new ArrayList<>();
+		ArrayList<Pilot> crewHours = new ArrayList<>();
 		ArrayList<Pilot> crewLeft = new ArrayList<>();
+		
 		
 		for (Pilot crew : pilots) {
 			
@@ -292,71 +316,81 @@ public class Scheduler implements IScheduler {
 			boolean isCaptain = crew.getRank() == Rank.FIRST_OFFICER;
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
-			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean location = crewInCorrectLocation(crew, flight);
 			boolean underMaxHours = !crewHitMaxHours(crew);
 			
 			if (hasNoConflict && isCaptain) {
-				if(rested && correctLocation && underMaxHours && qualified) {
-					
-					crewQualifiedRestedLocationUnderHours.add(crew);
-					
-				} else if (rested && correctLocation && qualified) {
-						
+				
+				if(qualified && rested && location && underMaxHours) {
+					crewQualifiedRestedLocationHours.add(crew);
+				} else if(qualified && rested && location) {
 					crewQualifiedRestedLocation.add(crew);
-					
-				} else if (rested && qualified) {
-					
+				} else if(qualified && rested && underMaxHours) {
+					crewQualifiedRestedHours.add(crew);
+				} else if(qualified && rested && location && underMaxHours) {
+					crewQualifiedLocationHours.add(crew);
+				} else if(qualified && rested) {
 					crewQualifiedRested.add(crew);
-					
-				} else if (qualified && correctLocation) {
-					
+				} else if(qualified && underMaxHours) {
+					crewQualifiedHours.add(crew);
+				} else if(qualified && location) {
 					crewQualifiedLocation.add(crew);
-					
-				} else if (qualified) {
-					
+				} else if(qualified) {
 					crewQualified.add(crew);
-					
-				} else if (correctLocation && rested) {
-					
-					crewLocationRested.add(crew);
-					
-				} else if (correctLocation) {
-					
-					crewLocation.add(crew);
-					
-				} else if (rested) {
-					
+				} else if(rested && location && underMaxHours) {
+					crewRestedLocationHours.add(crew);
+				} else if(location && underMaxHours) {
+					crewLocationHours.add(crew);
+				} else if(rested && location) {
+					crewRestedLocation.add(crew);
+				} else if(rested && underMaxHours) {
+					crewRestedHours.add(crew);
+				} else if(rested) {
 					crewRested.add(crew);
-					
+				} else if(location) {
+					crewLocation.add(crew);
+				} else if(underMaxHours) {
+					crewHours.add(crew);
 				} else {
-					//System.out.println("Is qualified: " +qualified+ " | Is rested: " +rested+ " | Is in location: " +correctLocation);
 					crewLeft.add(crew);
 				}
-				//System.out.println("Is qualified: " +qualified+ " | Is rested: " +rested+ " | Is in location: " +correctLocation);
-				
 			}
 		}
 		
-		if (!crewQualifiedRestedLocationUnderHours.isEmpty()) {
-			return crewQualifiedRestedLocationUnderHours;
-		} else if (!crewQualifiedRestedLocation.isEmpty()) {
+		if(!crewQualifiedRestedLocationHours.isEmpty()) {
+			return crewQualifiedRestedLocationHours;
+		} else if(!crewQualifiedRestedLocation.isEmpty()) {
 			return crewQualifiedRestedLocation;
-		} else if (!crewQualifiedRested.isEmpty()) {
-			return crewQualifiedRested;
-		} else if (!crewQualifiedLocation.isEmpty()) {
+		} else if(!crewQualifiedLocationHours.isEmpty()) {
+			return crewQualifiedLocationHours;
+		} else if(!crewQualifiedRestedHours.isEmpty()) {
+			return crewQualifiedRestedHours;
+		} else if(!crewQualifiedLocation.isEmpty()) {
 			return crewQualifiedLocation;
-		} else if (!crewQualified.isEmpty()) {
+		} else if(!crewQualifiedRested.isEmpty()) {
+			return crewQualifiedRested;
+		} else if(!crewQualifiedHours.isEmpty()) {
+			return crewQualifiedHours;
+		} else if(!crewQualified.isEmpty()) {
 			return crewQualified;
-		} else if (!crewLocationRested.isEmpty()) {
-			return crewLocationRested;
-		} else if (!crewLocation.isEmpty()) {
+		} else if(!crewRestedLocationHours.isEmpty()) {
+			return crewRestedLocationHours;
+		} else if(!crewLocationHours.isEmpty()) {
+			return crewLocationHours;
+		} else if(!crewRestedLocation.isEmpty()) {
+			return crewRestedLocation;
+		} else if(!crewLocation.isEmpty()) {
 			return crewLocation;
-		} else if (!crewRested.isEmpty()) {
+		} else if(!crewRestedHours.isEmpty()) {
+			return crewRestedHours;
+		} else if(!crewRested.isEmpty()) {
 			return crewRested;
+		} else if(!crewHours.isEmpty()) {
+			return crewHours;
 		} else {
 			return crewLeft;
 		}
-
+		
 	}
 	
 	public void getCabinCrew(FlightInfo flight) throws DoubleBookedException {
@@ -381,52 +415,87 @@ public class Scheduler implements IScheduler {
 	
 	private List<CabinCrew> getCabinCrewInBestOrder(FlightInfo flight){
 		
-		ArrayList<CabinCrew> crewQualifiedRestedLocationUnderHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualifiedRestedLocationHours = new ArrayList<>();
 		ArrayList<CabinCrew> crewQualifiedRestedLocation = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualifiedRestedHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualifiedLocationHours = new ArrayList<>();
 		ArrayList<CabinCrew> crewQualifiedRested = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualifiedHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewRestedLocationHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewQualifiedLocation = new ArrayList<>();
 		ArrayList<CabinCrew> crewQualified = new ArrayList<>();
+		ArrayList<CabinCrew> crewLocationHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewRestedLocation = new ArrayList<>();
+		ArrayList<CabinCrew> crewRestedHours = new ArrayList<>();
+		ArrayList<CabinCrew> crewRested = new ArrayList<>();
+		ArrayList<CabinCrew> crewLocation = new ArrayList<>();
+		ArrayList<CabinCrew> crewHours = new ArrayList<>();
 		ArrayList<CabinCrew> crewLeft = new ArrayList<>();
+		
 		
 		for (CabinCrew crew : cabinCrew) {
 			
 			boolean hasNoConflict = !schedule.hasConflict(crew, flight);
 			boolean qualified = crew.isQualifiedFor(schedule.getAircraftFor(flight));
 			boolean rested = crewIsRested(crew, flight);
-			boolean correctLocation = crewInCorrectLocation(crew, flight);
+			boolean location = crewInCorrectLocation(crew, flight);
 			boolean underMaxHours = !crewHitMaxHours(crew);
 			
 			if (hasNoConflict) {
 				
-				if(qualified && rested && correctLocation && underMaxHours) {
-					
-					crewQualifiedRestedLocationUnderHours.add(crew);
-					
-				} else if(qualified && rested && correctLocation) {
-					
+				if(qualified && rested && location && underMaxHours) {
+					crewQualifiedRestedLocationHours.add(crew);
+				} else if(qualified && rested && location) {
 					crewQualifiedRestedLocation.add(crew);
-					
-				} else if (qualified && rested) {
-					
+				} else if(qualified && rested && underMaxHours) {
+					crewQualifiedRestedHours.add(crew);
+				} else if(qualified && rested && location && underMaxHours) {
+					crewQualifiedLocationHours.add(crew);
+				} else if(qualified && rested) {
 					crewQualifiedRested.add(crew);
-					
-				} else if (qualified) {
-					
+				} else if(qualified && underMaxHours) {
+					crewQualifiedHours.add(crew);
+				} else if(qualified && location) {
+					crewQualifiedLocation.add(crew);
+				} else if(qualified) {
 					crewQualified.add(crew);
-					
+				} else if(rested && location && underMaxHours) {
+					crewRestedLocationHours.add(crew);
+				} else if(location && underMaxHours) {
+					crewLocationHours.add(crew);
+				} else if(rested && location) {
+					crewRestedLocation.add(crew);
+				} else if(rested && underMaxHours) {
+					crewRestedHours.add(crew);
+				} else if(rested) {
+					crewRested.add(crew);
+				} else if(location) {
+					crewLocation.add(crew);
+				} else if(underMaxHours) {
+					crewHours.add(crew);
 				} else {
-					
 					crewLeft.add(crew);
-					
 				}
 			}
 		}
 		
 		ArrayList<CabinCrew> crewInOrder = new ArrayList<>();
-		
-		crewInOrder.addAll(crewQualifiedRestedLocationUnderHours);
+
+		crewInOrder.addAll(crewQualifiedRestedLocationHours);
 		crewInOrder.addAll(crewQualifiedRestedLocation);
+		crewInOrder.addAll(crewQualifiedLocationHours);
+		crewInOrder.addAll(crewQualifiedRestedHours);
+		crewInOrder.addAll(crewQualifiedLocation);
 		crewInOrder.addAll(crewQualifiedRested);
+		crewInOrder.addAll(crewQualifiedHours);
 		crewInOrder.addAll(crewQualified);
+		crewInOrder.addAll(crewRestedLocationHours);
+		crewInOrder.addAll(crewLocationHours);
+		crewInOrder.addAll(crewRestedLocation);
+		crewInOrder.addAll(crewRestedHours);
+		crewInOrder.addAll(crewLocation);
+		crewInOrder.addAll(crewRested);
+		crewInOrder.addAll(crewHours);
 		crewInOrder.addAll(crewLeft);
 		
 		return crewInOrder;
