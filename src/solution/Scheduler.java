@@ -333,7 +333,7 @@ public class Scheduler implements IScheduler {
 		return points;
 	}
 	/**
-	 * priority given to crew outside the uk
+	 * priority given to crew outside the uk.
 	 * @param crew
 	 * @return
 	 */
@@ -343,12 +343,17 @@ public class Scheduler implements IScheduler {
 		if(Utilities.airportIsInUK(flight.getFlight().getArrivalAirportCode())) {
 			
 			if (!Utilities.airportIsInUK(getCrewLastFlight(crew, flight.getFlight()).getArrivalAirportCode())) {
-				points = 20000;
+				points = 50000;
 			}
 		}
 		return points;
 	}
-	
+	/**
+	 * check if the crew is in the right location, or has enough time to get there.
+	 * @param crew
+	 * @param flight
+	 * @return
+	 */
 	private int crewInCorrectLocationPoints(Crew crew, FlightInfo flight) {
 
 		int points = 0;
@@ -361,10 +366,10 @@ public class Scheduler implements IScheduler {
 			
 			String crewCurrentDeparture = flight.getFlight().getDepartureAirportCode();
 
-			if(crewCurrentDeparture.equals(crewPreviousArrival)) {
+			if(crewCurrentDeparture.equals(crewPreviousArrival) && !flight.getFlight().getDepartureTime().isAfter(getCrewLastFlight(crew, flight.getFlight()).getArrivalTime().plusHours(4))) {
 				points += 50000;
 			} else if(flight.getDepartureDateTime().isAfter(crewFlights.get(crewFlights.size()-1).getLandingDateTime().plusHours(48))){
-				points += 40000;
+				points += 50000;
 			}
 		} else {
 			if(crew.getHomeBase().equals(flight.getFlight().getDepartureAirportCode()))
@@ -389,10 +394,13 @@ public class Scheduler implements IScheduler {
 			String departureAirport = flight.getFlight().getDepartureAirportCode();
 			
 			if (Utilities.airportIsInUK(arrivalAirport) || Utilities.airportIsInUK(departureAirport)) {
-				points += 10000;
 				
-				if (crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(12))) {
+				if(crew.getHomeBase().equals(departureAirport) && crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(12))) {
 					points += 50000;
+				}
+				// Scheduler won't run if this is an if else...
+				if(!crew.getHomeBase().contains(departureAirport) && crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(24))) {
+					points += 40000;
 				}
 			}
 		}
@@ -416,12 +424,13 @@ public class Scheduler implements IScheduler {
 				weekStart = weekEnd;
 				weekEnd = weekStart.plusWeeks(1);
 				flightsThisWeek.clear();
+				flightsThisWeek.add(flight);
 			}
 		}
 		
 		for (int i=1; i < flightsThisWeek.size(); i++) {
 			if (flightsThisWeek.get(i).getDepartureDateTime().isAfter(flightsThisWeek.get(i-1).getLandingDateTime().plusHours(36))) {
-				points += 20000;
+				points += 30000;
 				break;
 			}
 		}
