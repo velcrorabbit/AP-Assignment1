@@ -2,6 +2,7 @@ package solution;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.*;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 import javax.xml.parsers.*;
@@ -102,7 +103,10 @@ public class RouteDAO implements IRouteDAO {
 	 */
 	@Override
 	public List<Route> getAllRoutes() {
-		return routes;
+		
+		List<Route> returnRoutes = routes;
+		
+		return returnRoutes;
 	}
 
 	/**
@@ -155,7 +159,7 @@ public class RouteDAO implements IRouteDAO {
 
 			}
 			
-		} catch (ParserConfigurationException | SAXException | IOException | NumberFormatException e) {
+		} catch (ParserConfigurationException | SAXException | IOException | NumberFormatException | NullPointerException | DateTimeParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			throw new DataLoadingException();

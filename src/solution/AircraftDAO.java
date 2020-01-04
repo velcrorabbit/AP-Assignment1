@@ -58,13 +58,12 @@ public class AircraftDAO implements IAircraftDAO {
 			}			
 			reader.close();
 
-		} catch (IOException ioe) { 
+		} catch (IOException | NullPointerException ioe) { 
 			//There was a problem reading the file
 			throw new DataLoadingException(ioe);
 		} catch(IllegalArgumentException iae) {
 			System.out.println("Garbage file detected");
-			throw new DataLoadingException(iae);
-			
+			throw new DataLoadingException(iae);	
 		}
 
 	}
@@ -151,7 +150,9 @@ public class AircraftDAO implements IAircraftDAO {
 	 */
 	@Override
 	public List<Aircraft> getAllAircraft() {
-		return planes;
+		List<Aircraft> returnPlanes = planes;
+		
+		return returnPlanes;
 	}
 
 	/**

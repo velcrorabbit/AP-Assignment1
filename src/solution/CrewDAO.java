@@ -78,7 +78,7 @@ public class CrewDAO implements ICrewDAO {
 				cabinCrew.add(crew);
 			}
 			
-		} catch (IOException e) {
+		} catch (IOException | NullPointerException e) {
 			e.printStackTrace();
 			throw new DataLoadingException();
 		} catch (JSONException je) {
@@ -210,7 +210,9 @@ public class CrewDAO implements ICrewDAO {
 	@Override
 	public List<CabinCrew> getAllCabinCrew() {
 
-		return cabinCrew;
+		List<CabinCrew> returnCrew = cabinCrew;
+		
+		return returnCrew;
 	}
 
 	/**
@@ -238,7 +240,9 @@ public class CrewDAO implements ICrewDAO {
 	@Override
 	public List<Pilot> getAllPilots() {
 		
-		return pilots;
+		List<Pilot> returnPilots = pilots;
+		
+		return returnPilots;
 	}
 
 	@Override

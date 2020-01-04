@@ -11,37 +11,34 @@ import baseclasses.IPassengerNumbersDAO;
  * containing forecasts of passenger numbers for flights on dates
  */
 public class PassengerNumbersDAO implements IPassengerNumbersDAO {
-
+	
 	Connection connection = null;
+	
+	int numberOfEntries;
+	
 	/**
 	 * Returns the number of passenger number entries in the cache
 	 * @return the number of passenger number entries in the cache
 	 */
 	@Override
-	public int getNumberOfEntries() {
-	
-		int count=0;
-		
+	public int getNumberOfEntries(){
+
 		try {
 			
 			if(connection != null) {
 				Statement countStatment = connection.createStatement();
 				ResultSet countResult = countStatment.executeQuery(
 						"SELECT COUNT(Date) AS total FROM PassengerNumbers;");
-				count = countResult.getInt("total");
-				
-				if (count == 0) {
-					count = -1;
-				}
+				numberOfEntries = countResult.getInt("total");
 			} else {
-				count = -1;
+				numberOfEntries = 0;
 			}
 			
 		} catch (SQLException | NullPointerException se) {
 			se.printStackTrace();
 		}
 		
-		return count;
+		return numberOfEntries;
 	}
 
 	/**
@@ -51,7 +48,7 @@ public class PassengerNumbersDAO implements IPassengerNumbersDAO {
 	 * @return the predicted number of passengers, or -1 if no data available
 	 */
 	@Override
-	public int getPassengerNumbersFor(int flightNumber, LocalDate date) {
+	public int getPassengerNumbersFor(int flightNumber, LocalDate date)  {
 		int passengerNumber=0;
 
 		try {
@@ -75,7 +72,7 @@ public class PassengerNumbersDAO implements IPassengerNumbersDAO {
 				passengerNumber = -1;
 			}
 			
-		} catch (SQLException se) {
+		} catch (SQLException | NullPointerException se) {
 			se.printStackTrace();
 		}
 		
@@ -108,14 +105,18 @@ public class PassengerNumbersDAO implements IPassengerNumbersDAO {
 	@Override
 	public void reset() {
 		
+		numberOfEntries = 0;
+		
 		try {
 			loadPassengerNumbersData(null);
-		} catch (DataLoadingException e) {
+			
+		} catch (DataLoadingException | NullPointerException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		connection = null;
 
 	}
+
 
 }
