@@ -17,8 +17,7 @@ public class Scheduler implements IScheduler {
 	private PassengerNumbersDAO passengers;
 	private LocalDate startDate;
 	private Schedule schedule;
-	
-	private IAircraftDAO aircraft;
+	private HashMap<Route, Route> linkedRoutes = new HashMap<>();
 	
 	@Override
 	public Schedule generateSchedule(IAircraftDAO aircraft, ICrewDAO crew, IRouteDAO route, IPassengerNumbersDAO passengers,
@@ -29,53 +28,89 @@ public class Scheduler implements IScheduler {
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
 		this.startDate = startDate;
-		this.aircraft = aircraft;
 		this.routes = route.getAllRoutes();
 
 		schedule = new Schedule(route, startDate, endDate);
 
+		linkRoutes();
+		
 		Vector<FlightInfo> vector = new Vector<>();
 		for (FlightInfo flight : schedule.getRemainingAllocations()) {
 			vector.add(flight);
 		}
 		
-		for (FlightInfo flight: vector) {
-			
-			Route currentRoute = flight.getFlight();
+		for (FlightInfo outBoundFlight: vector) {
+			if (linkedRoutes.containsKey(outBoundFlight.getFlight())) {
+				try {
+					try{
+						scheduleAPlane(outBoundFlight, outBoundFlight.getFlight());
+						scheduleACaptain(outBoundFlight);
+						scheduleAFirstOfficer(outBoundFlight);
+						scheduleCabinCrew(outBoundFlight);
+					} catch (DoubleBookedException e) {
+						e.printStackTrace();
+					}
 
-			try {
-				try{
-					scheduleAPlane(flight, currentRoute);
-					scheduleACaptain(flight);
-					scheduleAFirstOfficer(flight);
-					scheduleCabinCrew(flight);
-				} catch (DoubleBookedException e) {
+					schedule.completeAllocationFor(outBoundFlight);
+				} catch (InvalidAllocationException e) {
+					
 					e.printStackTrace();
 				}
+				
+				for (FlightInfo secondFlight: vector) {
+					if(linkedRoutes.get(outBoundFlight.getFlight()).equals(secondFlight.getFlight())) {	
+						try {
+							try{
+								schedule.allocateAircraftTo(schedule.getAircraftFor(outBoundFlight), secondFlight);
+								schedule.allocateCaptainTo(schedule.getCaptainOf(outBoundFlight), secondFlight);
+								schedule.allocateFirstOfficerTo(schedule.getFirstOfficerOf(outBoundFlight), secondFlight);
+								for (CabinCrew outBoundCrew : schedule.getCabinCrewOf(outBoundFlight)) {
+									schedule.allocateCabinCrewTo(outBoundCrew, secondFlight);
+								}
+							} catch (DoubleBookedException e) {
+								e.printStackTrace();
+							}
+							schedule.completeAllocationFor(secondFlight);
+						} catch (InvalidAllocationException e) {
 
-				schedule.completeAllocationFor(flight);
-				//System.out.println(schedule.isValid(flight));
-			} catch (InvalidAllocationException e) {
-				
-				System.out.println("Crew needed: " + schedule.getAircraftFor(flight).getCabinCrewRequired());
-				for (CabinCrew crewMember : schedule.getCabinCrewOf(flight)) {
-					System.out.println("Crew: " + crewMember.getForename());
+							e.printStackTrace();
+						}
+						break;
+					}
 				}
-				System.out.println("Captain: " + schedule.getCaptainOf(flight).getForename());
-				System.out.println("First Officer: " + schedule.getFirstOfficerOf(flight).getForename());
-				
-				e.printStackTrace();
+			}
+		}
+		for (FlightInfo flights: vector) {
+			
+			if (!linkedRoutes.containsKey(flights.getFlight()) && !linkedRoutes.containsValue(flights.getFlight())) {
+				try {
+					try{
+						scheduleAPlane(flights, flights.getFlight());
+						scheduleACaptain(flights);
+						scheduleAFirstOfficer(flights);
+						scheduleCabinCrew(flights);
+					} catch (DoubleBookedException e) {
+						e.printStackTrace();
+					}
+
+					schedule.completeAllocationFor(flights);
+					//System.out.println(schedule.isValid(flight));
+				} catch (InvalidAllocationException e) {
+					
+					System.out.println("Crew needed: " + schedule.getAircraftFor(flights).getCabinCrewRequired());
+					for (CabinCrew crewMember : schedule.getCabinCrewOf(flights)) {
+						System.out.println("Crew: " + crewMember.getForename());
+					}
+					System.out.println("Captain: " + schedule.getCaptainOf(flights).getForename());
+					System.out.println("First Officer: " + schedule.getFirstOfficerOf(flights).getForename());
+					
+					e.printStackTrace();
+				}
 			}
 		}
 		System.out.println("Done");
-		/*
-		for (FlightInfo completeFlight : schedule.getCompletedAllocations()) {
-			printOutcomes(completeFlight, completeFlight.getFlight());
-		}
-		 */
 		return schedule;
 	}
-	
 	/*
 	 * add the best plane to the flight
 	 */
@@ -87,7 +122,6 @@ public class Scheduler implements IScheduler {
 		List<Aircraft> possiblePlanes = getPossiblePlanesForFlight(flight, currentRoute, passengerNumber);
 		
 		for (Aircraft plane : possiblePlanes) {
-			//System.out.println("Score: " +calculatePlaneScore(plane, flight, currentRoute, passengerNumber)+ " | Starting Location: " +plane.getStartingPosition()+  " | Last Arrival Location: " +getPreviousArrivalAirport(plane)+ " | Departing from: " +currentRoute.getDepartureAirportCode());
 			schedule.allocateAircraftTo(plane, flight);
 			break;
 		}		
@@ -248,7 +282,7 @@ public class Scheduler implements IScheduler {
 		int crewNeeded = schedule.getAircraftFor(flight).getCabinCrewRequired();
 		int crewGot = 0;
 		
-		while (crewGot <= crewNeeded) {
+		while (crewGot < crewNeeded) {
 	
 			schedule.allocateCabinCrewTo(getBestCabinCrew(flight), flight);
 			crewGot++;
@@ -506,5 +540,35 @@ public class Scheduler implements IScheduler {
 
 	}
 
-	
+	private void linkRoutes(){
+
+		Route outBound;
+		Route inBound;
+
+		for (Route route : routes) {
+
+			if(!linkedRoutes.containsKey(route)) {
+
+				outBound = route;
+
+				for (Route nextFlight : routes) {
+
+					if(!linkedRoutes.containsValue(nextFlight)) {
+
+						if (outBound.getArrivalAirportCode().equals(nextFlight.getDepartureAirportCode())
+								&& nextFlight.getArrivalAirportCode().equals(outBound.getDepartureAirportCode())
+								&& nextFlight.getDepartureTime().isAfter(outBound.getArrivalTime())) {
+
+							inBound = nextFlight;
+							linkedRoutes.put(outBound, inBound);
+							//System.out.println("Outbound: " +outBound.getFlightNumber()+ " | Inbound: " +inBound.getFlightNumber());
+							break;
+
+						}
+						
+					}
+				}
+			}
+		}
+	}
 }
