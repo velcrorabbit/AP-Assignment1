@@ -1,7 +1,6 @@
 package solution;
 import java.time.*;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Vector;
 
@@ -18,8 +17,6 @@ public class Scheduler implements IScheduler {
 	private LocalDate startDate;
 	private Schedule schedule;
 	
-	private IAircraftDAO aircraft;
-	
 	@Override
 	public Schedule generateSchedule(IAircraftDAO aircraft, ICrewDAO crew, IRouteDAO route, IPassengerNumbersDAO passengers,
 			LocalDate startDate, LocalDate endDate) {
@@ -29,16 +26,14 @@ public class Scheduler implements IScheduler {
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
 		this.startDate = startDate;
-		this.aircraft = aircraft;
 		this.routes = route.getAllRoutes();
 
 		schedule = new Schedule(route, startDate, endDate);
-
+		
 		Vector<FlightInfo> vector = new Vector<>();
 		for (FlightInfo flight : schedule.getRemainingAllocations()) {
 			vector.add(flight);
 		}
-		
 		for (FlightInfo flight: vector) {
 			
 			Route currentRoute = flight.getFlight();
@@ -75,7 +70,35 @@ public class Scheduler implements IScheduler {
 		 */
 		return schedule;
 	}
-	
+	/*
+	 * work out if this flight can be paired
+	 */
+	private boolean canBePaired(FlightInfo outBound, FlightInfo inBound) {
+		
+		String outBoundArrivalAirport = outBound.getFlight().getArrivalAirportCode();
+		String inBoundDepartureAirport = inBound.getFlight().getDepartureAirportCode();
+		LocalTime outBoundArrivalTime = outBound.getFlight().getArrivalTime();
+		LocalTime inBoundDepartureTime = inBound.getFlight().getDepartureTime();
+		
+		boolean correctAirport = outBoundArrivalAirport.equals(inBoundDepartureAirport);
+		boolean correctTime = inBoundDepartureTime.isAfter(outBoundArrivalTime) && inBoundDepartureTime.isBefore(outBoundArrivalTime.plusMinutes(30));
+		boolean planeConflict = schedule.hasConflict(schedule.getAircraftFor(outBound), inBound);
+		boolean captainConflict = schedule.hasConflict(schedule.getCaptainOf(outBound), inBound);
+		boolean firstOfficerConflict = schedule.hasConflict(schedule.getFirstOfficerOf(outBound), inBound);
+		boolean cabinCrewConflict = false;
+		
+		for (CabinCrew firstCrew : schedule.getCabinCrewOf(outBound)) {
+			if(schedule.hasConflict(firstCrew, inBound)) {
+				cabinCrewConflict = true;
+				break;
+			}
+		}
+		
+		if (correctAirport && correctTime && !planeConflict && !captainConflict && !firstOfficerConflict && !cabinCrewConflict) {
+			return true;
+		}
+		return false;
+	}
 	/*
 	 * add the best plane to the flight
 	 */
@@ -87,7 +110,6 @@ public class Scheduler implements IScheduler {
 		List<Aircraft> possiblePlanes = getPossiblePlanesForFlight(flight, currentRoute, passengerNumber);
 		
 		for (Aircraft plane : possiblePlanes) {
-			//System.out.println("Score: " +calculatePlaneScore(plane, flight, currentRoute, passengerNumber)+ " | Starting Location: " +plane.getStartingPosition()+  " | Last Arrival Location: " +getPreviousArrivalAirport(plane)+ " | Departing from: " +currentRoute.getDepartureAirportCode());
 			schedule.allocateAircraftTo(plane, flight);
 			break;
 		}		
@@ -248,7 +270,7 @@ public class Scheduler implements IScheduler {
 		int crewNeeded = schedule.getAircraftFor(flight).getCabinCrewRequired();
 		int crewGot = 0;
 		
-		while (crewGot <= crewNeeded) {
+		while (crewGot < crewNeeded) {
 	
 			schedule.allocateCabinCrewTo(getBestCabinCrew(flight), flight);
 			crewGot++;
@@ -505,6 +527,4 @@ public class Scheduler implements IScheduler {
 		// TODO Auto-generated method stub
 
 	}
-
-	
 }
