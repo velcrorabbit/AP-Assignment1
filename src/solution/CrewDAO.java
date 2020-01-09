@@ -32,6 +32,7 @@ public class CrewDAO implements ICrewDAO {
 	 */
 	@Override
 	public void loadCrewData(Path path) throws DataLoadingException {
+		
 		try {
 			BufferedReader bufferedReader = Files.newBufferedReader(path);
 			String json ="";

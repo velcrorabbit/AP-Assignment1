@@ -12,7 +12,6 @@ public class Scheduler implements IScheduler {
 	private List<CabinCrew> cabinCrew;
 	private List<Pilot> pilots;
 	private List<Aircraft> planes;
-	private List<Route> routes;
 	private PassengerNumbersDAO passengers;
 	private LocalDate startDate;
 	private Schedule schedule;
@@ -26,48 +25,91 @@ public class Scheduler implements IScheduler {
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
 		this.startDate = startDate;
-		this.routes = route.getAllRoutes();
 
 		schedule = new Schedule(route, startDate, endDate);
+		
+		int outbound = 0;
+		int inbound = 0;
+		int spare = 0;
 		
 		Vector<FlightInfo> vector = new Vector<>();
 		for (FlightInfo flight : schedule.getRemainingAllocations()) {
 			vector.add(flight);
 		}
-		for (FlightInfo flight: vector) {
-			
-			Route currentRoute = flight.getFlight();
-
-			try {
-				try{
-					scheduleAPlane(flight, currentRoute);
-					scheduleACaptain(flight);
-					scheduleAFirstOfficer(flight);
-					scheduleCabinCrew(flight);
-				} catch (DoubleBookedException e) {
+		for (FlightInfo outBoundFlight: vector) {
+			if(!schedule.getCompletedAllocations().contains(outBoundFlight) && Utilities.airportIsInUK(outBoundFlight.getFlight().getDepartureAirportCode())) {
+				try {
+					try{
+						scheduleAPlane(outBoundFlight, outBoundFlight.getFlight());
+						scheduleACaptain(outBoundFlight);
+						scheduleAFirstOfficer(outBoundFlight);
+						scheduleCabinCrew(outBoundFlight);
+					} catch (DoubleBookedException e) {
+						System.out.println("First flight allocation failed");
+						e.printStackTrace();
+					}
+					outbound++;
+					schedule.completeAllocationFor(outBoundFlight);
+				} catch (InvalidAllocationException e) {
+					System.out.println("First flight completion failed");
 					e.printStackTrace();
 				}
+				
+				for (FlightInfo secondFlight: schedule.getRemainingAllocations()) {
 
-				schedule.completeAllocationFor(flight);
-				//System.out.println(schedule.isValid(flight));
-			} catch (InvalidAllocationException e) {
-				
-				System.out.println("Crew needed: " + schedule.getAircraftFor(flight).getCabinCrewRequired());
-				for (CabinCrew crewMember : schedule.getCabinCrewOf(flight)) {
-					System.out.println("Crew: " + crewMember.getForename());
+					if(canBePaired(outBoundFlight, secondFlight)) {
+						try {
+							try{
+								schedule.allocateAircraftTo(schedule.getAircraftFor(outBoundFlight), secondFlight);
+								schedule.allocateCaptainTo(schedule.getCaptainOf(outBoundFlight), secondFlight);
+								schedule.allocateFirstOfficerTo(schedule.getFirstOfficerOf(outBoundFlight), secondFlight);
+								for (CabinCrew outBoundCrew : schedule.getCabinCrewOf(outBoundFlight)) {
+									schedule.allocateCabinCrewTo(outBoundCrew, secondFlight);
+								}
+							} catch (DoubleBookedException e) {
+								System.out.println("Second flight allocation failed");
+								e.printStackTrace();
+							}
+							inbound++;
+							schedule.completeAllocationFor(secondFlight);
+							
+						} catch (InvalidAllocationException e) {
+							System.out.println("Second flight completion failed");
+							e.printStackTrace();
+						}
+						break;
+					}
 				}
-				System.out.println("Captain: " + schedule.getCaptainOf(flight).getForename());
-				System.out.println("First Officer: " + schedule.getFirstOfficerOf(flight).getForename());
-				
+			}
+		}
+		
+		Vector<FlightInfo> remainingFlights = new Vector<>();
+		for (FlightInfo flight : schedule.getRemainingAllocations()) {
+			remainingFlights.add(flight);
+		}
+		
+		for (FlightInfo extraFlight: remainingFlights) {
+			try {
+				try{
+					scheduleAPlane(extraFlight, extraFlight.getFlight());
+					scheduleACaptain(extraFlight);
+					scheduleAFirstOfficer(extraFlight);
+					scheduleCabinCrew(extraFlight);
+				} catch (DoubleBookedException e) {
+					System.out.println("Extra flight allocation failed");
+					e.printStackTrace();
+				}
+				spare++;
+				schedule.completeAllocationFor(extraFlight);
+			} catch (InvalidAllocationException e) {
+				System.out.println("Extra flight completion failed");
 				e.printStackTrace();
 			}
 		}
 		System.out.println("Done");
-		/*
-		for (FlightInfo completeFlight : schedule.getCompletedAllocations()) {
-			printOutcomes(completeFlight, completeFlight.getFlight());
-		}
-		 */
+		System.out.println("Outbound: " + outbound);
+		System.out.println("Inbound: " + inbound);
+		System.out.println("Spare: " +spare);
 		return schedule;
 	}
 	/*
@@ -128,7 +170,6 @@ public class Scheduler implements IScheduler {
 			int planePoints = calculatePlaneScore(plane, flight, currentRoute, passengers);
 
 			if(planePoints == topPoints) {
-				//System.out.println("plane points: " +planePoints+ " | best points: " +topPoints);
 				bestPlanes.add(plane);
 			}
 		}
@@ -167,11 +208,8 @@ public class Scheduler implements IScheduler {
 		}
 		return planePoints;
 	}
-	/**
+	/*
 	 * check if the plane is in the right location
-	 * @param currentRoute
-	 * @param plane
-	 * @return
 	 */
 	private int planeLeavingStartLocation(Route currentRoute, Aircraft plane) {
 
@@ -225,7 +263,7 @@ public class Scheduler implements IScheduler {
 			
 			int pilotPoints = calculatePilotScore("Captain", flight, crew);
 			
-			if(pilotPoints > topPoints) {
+			if(pilotPoints >= topPoints) {
 				topPoints = pilotPoints;
 				topCaptain = crew;
 			}
@@ -254,7 +292,7 @@ public class Scheduler implements IScheduler {
 			
 			int pilotPoints = calculatePilotScore("First Officer", flight, crew);
 			
-			if(pilotPoints > topPoints && !schedule.getCaptainOf(flight).equals(crew)) {
+			if(pilotPoints >= topPoints && !schedule.getCaptainOf(flight).equals(crew)) {
 				topPoints = pilotPoints;
 				topFirstOfficer = crew;
 			}			
@@ -271,10 +309,8 @@ public class Scheduler implements IScheduler {
 		int crewGot = 0;
 		
 		while (crewGot < crewNeeded) {
-	
 			schedule.allocateCabinCrewTo(getBestCabinCrew(flight), flight);
 			crewGot++;
-
 		}
 	}
 	/*
@@ -287,15 +323,23 @@ public class Scheduler implements IScheduler {
 		
 		for (CabinCrew crew : cabinCrew) {
 			
-			if(!schedule.getCabinCrewOf(flight).contains(crew)) {
+			if(!schedule.getCabinCrewOf(flight).contains(crew) && !schedule.hasConflict(crew, flight)) {
 				int crewPoints = calculateCrewScore(flight, crew);
 					
-				if(crewPoints > topPoints) {
+				if(crewPoints >= topPoints) {
 					topPoints = crewPoints;
 					topCrew = crew;
 				}
-			}			
-		}	
+			}
+		}
+		if(topPoints == 0) {
+			for (CabinCrew spareCrew : cabinCrew) {
+				if(!schedule.getCabinCrewOf(flight).contains(spareCrew) && !schedule.hasConflict(spareCrew, flight)) {
+					topCrew = spareCrew;
+					break;
+				}
+			}
+		}
 		return topCrew;
 	}
 	/*
@@ -340,6 +384,8 @@ public class Scheduler implements IScheduler {
 			crewPoints += crewMonthlyHoursPoints(crew, crewFlights);
 			crewPoints += crewWeekendPoints(crew, crewFlights);
 			crewPoints += crewOutsideUKPoints(crew, flight, crewFlights);
+		} else {
+			crewPoints = -1;
 		}
 		return crewPoints;
 	}
@@ -351,13 +397,13 @@ public class Scheduler implements IScheduler {
 		int points = 0;
 		
 		if (crew.isQualifiedFor(plane)){
-			points = 500000;
+			points = 50000;
 		}
 		
 		return points;
 	}
 	/*
-	 * priority given to crew outside the uk.
+	 * priority given to crew outside the UK.
 	 */
 	private int crewOutsideUKPoints(Crew crew, FlightInfo flight, List<FlightInfo> crewFlights) {
 		int points = 0;
@@ -365,7 +411,7 @@ public class Scheduler implements IScheduler {
 		if(Utilities.airportIsInUK(flight.getFlight().getArrivalAirportCode())) {
 			
 			if (!Utilities.airportIsInUK(getCrewLastFlight(crew, flight.getFlight(), crewFlights).getArrivalAirportCode())) {
-				points = 5000;
+				points = 6000;
 			}
 		}
 		return points;
@@ -379,13 +425,12 @@ public class Scheduler implements IScheduler {
 		
 		String crewCurrentDeparture = flight.getFlight().getDepartureAirportCode();
 		
-		if (crewFlights.size() > 1) {
+		if (crewFlights.size() >= 1) {
 		
 			Route crewPreviousArrival = getCrewLastFlight(crew, flight.getFlight(), crewFlights);
 			
-			if(crewCurrentDeparture.equals(crewPreviousArrival.getArrivalAirportCode()) 
-					&& !flight.getFlight().getDepartureTime().isAfter(crewPreviousArrival.getArrivalTime().plusHours(4))) {
-				points = 50000;
+			if(crewCurrentDeparture.equals(crewPreviousArrival.getArrivalAirportCode())) {
+				points = 5000;
 			} else if(flight.getDepartureDateTime().isAfter(crewFlights.get(crewFlights.size()-1).getLandingDateTime().plusHours(48))){
 				points = 5000;
 			}
@@ -399,17 +444,16 @@ public class Scheduler implements IScheduler {
 	 * check if crew is at their home base
 	 */
 	private boolean crewAtHomeBase(Crew crew, String crewCurrentDeparture) {
-		//System.out.println("At home: " +crew.getHomeBase().equals(crewCurrentDeparture)+ " | Homebase: " +crew.getHomeBase()+ " | Departure: " + crewCurrentDeparture);
 		return crew.getHomeBase().equals(crewCurrentDeparture);
 	}
 	/*
-	 * check if the crew has had a 12 hour break at home, or 24 hour break not at home between uk landings.
+	 * check if the crew has had a 12 hour break at home, or 24 hour break not at home between UK landings.
 	 */
 	private int restedInUKPoints(Crew crew, FlightInfo flight, List<FlightInfo> crewFlights) {
 
 		int points = 0;
 
-		if (crewFlights.size() > 1) {
+		if (crewFlights.size() >= 1) {
 			
 			Route crewLastRoute = getCrewLastFlight(crew, flight.getFlight(), crewFlights);
 			
@@ -422,15 +466,15 @@ public class Scheduler implements IScheduler {
 			if (Utilities.airportIsInUK(arrivalAirport) && Utilities.airportIsInUK(departureAirport)) {
 				
 				if(crewAtHomeBase(crew, departureAirport) && crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(12))) {
-					points = 70000;
+					points = 7000;
 				}
 				// Scheduler won't run if this is an if else...
 				if(!crewAtHomeBase(crew, departureAirport) && crewCurrentDeparture.isAfter(crewPreviousArrival.plusHours(24))) {
-					points = 70000;
+					points = 7000;
 				}
 			}
 		} else {
-			points = 8000;
+			points = 5000;
 		}
 		return points;
 	}
@@ -458,7 +502,7 @@ public class Scheduler implements IScheduler {
 		
 		for (int i=1; i < flightsThisWeek.size(); i++) {
 			if (flightsThisWeek.get(i).getDepartureDateTime().isAfter(flightsThisWeek.get(i-1).getLandingDateTime().plusHours(36))) {
-				points += 3000;
+				points = 3000;
 				break;
 			}
 		}
@@ -475,28 +519,22 @@ public class Scheduler implements IScheduler {
 		
 		LocalDate MonthEnd = startDate.plusMonths(1);
 		
-		int minutesWorked = 0;
+		long minutesWorked = 0;
 		
 		for (FlightInfo flight : crewsFlights) {
 			
 			if(flight.getLandingDateTime().toLocalDate().isBefore(MonthEnd)) {
-				
 				minutesWorked += flight.getFlight().getDuration().toMinutes();
-				
-				if(minutesWorked < 600) {
-					
-					points += 500;
-
-				} else {
-					points = 600 - (minutesWorked - 600);
-				}
-				
 			} else {
-				
 				MonthEnd = MonthEnd.plusMonths(1);
-				minutesWorked = (int)flight.getFlight().getDuration().toHours();
-				
+				minutesWorked = flight.getFlight().getDuration().toMinutes();
 			}
+		}
+		
+		if(minutesWorked < 6000) {
+			points = 6000;
+		} else {
+			points = (int) (6000 - (minutesWorked - 600));
 		}
 		
 		return points;
@@ -508,23 +546,21 @@ public class Scheduler implements IScheduler {
 		
 		Route crewLastFlight = currentRoute;
 		
-		if(crewFlights.size() > 1) {
+		if(crewFlights.size() >= 1) {
 		
 			crewLastFlight = crewFlights.get(crewFlights.size()-1).getFlight();
 		
 		}
 		return crewLastFlight;
 	}
-	
 	@Override
 	public void setSchedulerRunner(SchedulerRunner arg0) {
 		// TODO Auto-generated method stub
-
+		
 	}
-
 	@Override
 	public void stop() {
 		// TODO Auto-generated method stub
-
+		
 	}
 }
