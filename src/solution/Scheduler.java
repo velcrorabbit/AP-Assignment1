@@ -12,7 +12,6 @@ public class Scheduler implements IScheduler {
 	private List<CabinCrew> cabinCrew;
 	private List<Pilot> pilots;
 	private List<Aircraft> planes;
-	private List<Route> routes;
 	private PassengerNumbersDAO passengers;
 	private LocalDate startDate;
 	private Schedule schedule;
@@ -26,7 +25,6 @@ public class Scheduler implements IScheduler {
 		this.planes = aircraft.getAllAircraft();
 		this.passengers = (PassengerNumbersDAO) passengers;
 		this.startDate = startDate;
-		this.routes = route.getAllRoutes();
 
 		schedule = new Schedule(route, startDate, endDate);
 		
@@ -34,40 +32,81 @@ public class Scheduler implements IScheduler {
 		for (FlightInfo flight : schedule.getRemainingAllocations()) {
 			vector.add(flight);
 		}
-		for (FlightInfo flight: vector) {
-			
-			Route currentRoute = flight.getFlight();
+		for (FlightInfo outBoundFlight: vector) {
+			if(!schedule.getCompletedAllocations().contains(outBoundFlight) && Utilities.airportIsInUK(outBoundFlight.getFlight().getDepartureAirportCode())) {
+				try {
+					try{
+						scheduleAPlane(outBoundFlight, outBoundFlight.getFlight());
+						scheduleACaptain(outBoundFlight);
+						scheduleAFirstOfficer(outBoundFlight);
+						scheduleCabinCrew(outBoundFlight);
+					} catch (DoubleBookedException e) {
+						System.out.println("First flight allocation failed");
+						e.printStackTrace();
+					}
+	
+					schedule.completeAllocationFor(outBoundFlight);
+				} catch (InvalidAllocationException e) {
+					System.out.println("First flight completion failed");
+					e.printStackTrace();
+				}
+				
+				for (FlightInfo secondFlight: schedule.getRemainingAllocations()) {
 
+					if(canBePaired(outBoundFlight, secondFlight)) {
+						try {
+							try{
+								schedule.allocateAircraftTo(schedule.getAircraftFor(outBoundFlight), secondFlight);
+								schedule.allocateCaptainTo(schedule.getCaptainOf(outBoundFlight), secondFlight);
+								schedule.allocateFirstOfficerTo(schedule.getFirstOfficerOf(outBoundFlight), secondFlight);
+								for (CabinCrew outBoundCrew : schedule.getCabinCrewOf(outBoundFlight)) {
+									schedule.allocateCabinCrewTo(outBoundCrew, secondFlight);
+								}
+							} catch (DoubleBookedException e) {
+								System.out.println("Second flight allocation failed");
+								e.printStackTrace();
+							}
+							schedule.completeAllocationFor(secondFlight);
+							
+						} catch (InvalidAllocationException e) {
+							System.out.println("Second flight completion failed");
+							e.printStackTrace();
+						}
+						break;
+					}
+				}
+			}
+		}
+		
+		Vector<FlightInfo> remainingFlights = new Vector<>();
+		for (FlightInfo flight : schedule.getRemainingAllocations()) {
+			remainingFlights.add(flight);
+		}
+		
+		for (FlightInfo extraFlight: remainingFlights) {
 			try {
 				try{
-					scheduleAPlane(flight, currentRoute);
-					scheduleACaptain(flight);
-					scheduleAFirstOfficer(flight);
-					scheduleCabinCrew(flight);
+					scheduleAPlane(extraFlight, extraFlight.getFlight());
+					scheduleACaptain(extraFlight);
+					scheduleAFirstOfficer(extraFlight);
+					scheduleCabinCrew(extraFlight);
+					/*
+					for (CabinCrew crew2 : schedule.getCabinCrewOf(extraFlight)) {
+						System.out.println(calculateCrewScore(extraFlight, crew2));
+					}
+					*/
 				} catch (DoubleBookedException e) {
+					System.out.println("Extra flight allocation failed");
 					e.printStackTrace();
 				}
 
-				schedule.completeAllocationFor(flight);
-				//System.out.println(schedule.isValid(flight));
+				schedule.completeAllocationFor(extraFlight);
 			} catch (InvalidAllocationException e) {
-				
-				System.out.println("Crew needed: " + schedule.getAircraftFor(flight).getCabinCrewRequired());
-				for (CabinCrew crewMember : schedule.getCabinCrewOf(flight)) {
-					System.out.println("Crew: " + crewMember.getForename());
-				}
-				System.out.println("Captain: " + schedule.getCaptainOf(flight).getForename());
-				System.out.println("First Officer: " + schedule.getFirstOfficerOf(flight).getForename());
-				
+				System.out.println("Extra flight completion failed");
 				e.printStackTrace();
 			}
 		}
 		System.out.println("Done");
-		/*
-		for (FlightInfo completeFlight : schedule.getCompletedAllocations()) {
-			printOutcomes(completeFlight, completeFlight.getFlight());
-		}
-		 */
 		return schedule;
 	}
 	/*
@@ -271,10 +310,8 @@ public class Scheduler implements IScheduler {
 		int crewGot = 0;
 		
 		while (crewGot < crewNeeded) {
-	
 			schedule.allocateCabinCrewTo(getBestCabinCrew(flight), flight);
 			crewGot++;
-
 		}
 	}
 	/*
@@ -287,15 +324,23 @@ public class Scheduler implements IScheduler {
 		
 		for (CabinCrew crew : cabinCrew) {
 			
-			if(!schedule.getCabinCrewOf(flight).contains(crew)) {
+			if(!schedule.getCabinCrewOf(flight).contains(crew) && !schedule.hasConflict(crew, flight)) {
 				int crewPoints = calculateCrewScore(flight, crew);
 					
-				if(crewPoints > topPoints) {
+				if(crewPoints >= topPoints) {
 					topPoints = crewPoints;
 					topCrew = crew;
 				}
-			}			
-		}	
+			}
+		}
+		if(topPoints == 0) {
+			for (CabinCrew spareCrew : cabinCrew) {
+				if(!schedule.getCabinCrewOf(flight).contains(spareCrew) && !schedule.hasConflict(spareCrew, flight)) {
+					topCrew = spareCrew;
+					break;
+				}
+			}
+		}
 		return topCrew;
 	}
 	/*
@@ -340,6 +385,8 @@ public class Scheduler implements IScheduler {
 			crewPoints += crewMonthlyHoursPoints(crew, crewFlights);
 			crewPoints += crewWeekendPoints(crew, crewFlights);
 			crewPoints += crewOutsideUKPoints(crew, flight, crewFlights);
+		} else {
+			crewPoints = -1;
 		}
 		return crewPoints;
 	}
@@ -505,6 +552,8 @@ public class Scheduler implements IScheduler {
 	 * get the last flight the crew has been allocated to.
 	 */
 	private Route getCrewLastFlight(Crew crew, Route currentRoute, List<FlightInfo> crewFlights) {
+		
+		
 		
 		Route crewLastFlight = currentRoute;
 		

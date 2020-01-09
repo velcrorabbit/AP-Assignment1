@@ -22,10 +22,15 @@ public class Main {
 		numbers.reset();
 		routes.reset();
 		
-		aircraft.loadAircraftData(Paths.get("./data/mini_aircraft.csv"));
-		crew.loadCrewData(Paths.get("./data/mini_crew.json"));
-		numbers.loadPassengerNumbersData(Paths.get("./data/mini_passengers.db"));
-		routes.loadRouteData(Paths.get("./data/mini_routes.xml"));
+		aircraft.loadAircraftData(Paths.get("./data/aircraft.csv"));
+		crew.loadCrewData(Paths.get("./data/crew.json"));
+		numbers.loadPassengerNumbersData(Paths.get("./data/passengernumbers.db"));
+		routes.loadRouteData(Paths.get("./data/routes.xml"));
+		
+//		aircraft.loadAircraftData(Paths.get("./data/mini_aircraft.csv"));
+//		crew.loadCrewData(Paths.get("./data/mini_crew.json"));
+//		numbers.loadPassengerNumbersData(Paths.get("./data/mini_passengers.db"));
+//		routes.loadRouteData(Paths.get("./data/mini_routes.xml"));
 
 		Scheduler scheduler = new Scheduler();
 		scheduler.generateSchedule(aircraft, crew, routes, numbers, LocalDate.parse("2020-07-01"), LocalDate.parse("2020-08-31"));
