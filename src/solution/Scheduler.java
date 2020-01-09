@@ -263,7 +263,7 @@ public class Scheduler implements IScheduler {
 			
 			int pilotPoints = calculatePilotScore("Captain", flight, crew);
 			
-			if(pilotPoints > topPoints) {
+			if(pilotPoints >= topPoints) {
 				topPoints = pilotPoints;
 				topCaptain = crew;
 			}
@@ -292,7 +292,7 @@ public class Scheduler implements IScheduler {
 			
 			int pilotPoints = calculatePilotScore("First Officer", flight, crew);
 			
-			if(pilotPoints > topPoints && !schedule.getCaptainOf(flight).equals(crew)) {
+			if(pilotPoints >= topPoints && !schedule.getCaptainOf(flight).equals(crew)) {
 				topPoints = pilotPoints;
 				topFirstOfficer = crew;
 			}			
