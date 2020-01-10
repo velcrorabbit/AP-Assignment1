@@ -169,6 +169,6 @@ public class AircraftDAO implements IAircraftDAO {
 	 */
 	@Override
 	public void reset() {
-		planes = new ArrayList<>();
+		planes.clear();
 	}
 }
